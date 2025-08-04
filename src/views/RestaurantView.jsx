@@ -1,77 +1,123 @@
 import { useEffect, useState } from "react";
 import { useDebouncedCallback } from 'use-debounce';
 import MenuItem from "../components/MenuItem/MenuItem.jsx";
-
 import styles from "./RestaurantView.module.css";
 import NavBar from "../components/NavBar/NavBar.jsx";
 import SearchField from "../components/SearchField/SearchField.jsx";
 
 const RestaurantView = () => {
   const [dishes, setDishes] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [wishlist, setWishlist] = useState([]);
 
-  // useDebouncedCallback takes a function as a parameter and as the second parameter
-  // the number of milliseconds it should wait until it is actually called so a user
-  // can type freely and as long as they are typing a letter quicker than 500ms, the function won't fire yet.
-  // This is to optimize user experience and communication with the server
   const debouncedEffectHook = useDebouncedCallback(() => {
     let currentEffect = true;
     fetch(
-      `https://www.themealdb.com/api/json/v1/1/search.php?s=`
-    ).then(res => {
-      if (!res.ok) {
-        return { meals: null };
-      }
-      return res.json();
-    }).then(result => {
-      if (!currentEffect) {
-        return;
-      }
-      // The ?? operator turns 'undefined' or 'null' values into a preferred default value on the right side
-      // We know that result.meals can be null if there are no results, so in that case, we provide an empty array for safety
-      setDishes(result.meals ?? []);
-    }).catch(() => {
-      if (!currentEffect) {
-        return;
-      }
-      setDishes([]);
-    })
-
-    // This cleanup function is to prevent multiple API calls coming back out of sequence and setting the value of our dishes list.
-    // Example:
-    // 1. First search query is pizza -> Network request takes 5 seconds to fetch data
-    // 2. In the meantime, the user types burger instead -> Network request takes 1 second and shows burgers in the list
-    // 3. Then, finally, the first data fetch comes back and overwrites the results, so the search box shows 'burger'
-    //    but the results show pizzas. This is called "stale data"
+      `https://www.themealdb.com/api/json/v1/1/search.php?s=${encodeURIComponent(searchTerm)}`
+    )
+      .then(res => res.ok ? res.json() : { meals: null })
+      .then(result => {
+        if (!currentEffect) return;
+        setDishes(result.meals ?? []);
+      })
+      .catch(() => {
+        if (!currentEffect) return;
+        setDishes([]);
+      });
     return () => {
       currentEffect = false;
-    }
+    };
   }, 500);
 
-  // useEffect can take a variable that is a function and does not need to be defined as an anonymous () => {} arrow function
-  // This is especially important when using more controlled techniques like debouncing
-  useEffect(debouncedEffectHook, [debouncedEffectHook]);
+  useEffect(debouncedEffectHook, [debouncedEffectHook, searchTerm]);
+
+  const toggleWishlist = (dishId) => {
+    setWishlist((prev) =>
+      prev.includes(dishId)
+        ? prev.filter((id) => id !== dishId)
+        : [...prev, dishId]
+    );
+  };
+
+  // Find dishes in wishlist from the loaded dishes
+  const wishedDishes = dishes.filter((dish) => wishlist.includes(dish.idMeal));
 
   return (
     <>
       <NavBar>
         <h1>ReDI React Restaurant</h1>
-
-        <SearchField />
+        <SearchField value={searchTerm} onChange={setSearchTerm} />
       </NavBar>
 
-      <div className={styles.restaurantWrapper}>
-        <div className={styles.menu}>
-          {dishes.length > 0 ? (
-            dishes.map((dish) => (
-              <MenuItem
-                dish={dish}
-                key={dish.idMeal}
-              />
-            ))
-          ) : (
-            <p>No dishes found :(</p>
-          )}
+      {/* Layout: flex. Menu takes all, wishlist is a fixed small column */}
+      <div style={{ display: "flex", alignItems: "flex-start" }} className={styles.restaurantWrapper}>
+        {/* Menu Section */}
+        <div style={{ flex: "1 1 0%" }}>
+          <div className={styles.menu}>
+            {dishes.length > 0 ? (
+              dishes.map((dish) => (
+                <MenuItem
+                  dish={dish}
+                  key={dish.idMeal}
+                  isWished={wishlist.includes(dish.idMeal)}
+                  toggleWishlist={() => toggleWishlist(dish.idMeal)}
+                />
+              ))
+            ) : (
+              <p>No dishes found :(</p>
+            )}
+          </div>
         </div>
+        {/* Wishlist Section */}
+        <aside
+          style={{
+            width: 220,
+            minWidth: 180,
+            maxWidth: 260,
+            marginLeft: 24,
+            padding: "0.75rem 1rem",
+            background: "#f1f1f1",
+            borderRadius: "8px",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+            position: "sticky",
+            top: 24,
+            height: "fit-content"
+          }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: 12, textAlign: "center" }}>Wishlist</h3>
+          {wishedDishes.length === 0 ? (
+            <p style={{ fontSize: 14, color: "#555", textAlign: "center" }}>No items yet.</p>
+          ) : (
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {wishedDishes.map((dish) => (
+                <li key={dish.idMeal} style={{ marginBottom: 16, display: "flex", alignItems: "center" }}>
+                  <img
+                    src={dish.strMealThumb}
+                    alt={dish.strMeal}
+                    style={{ width: 32, height: 32, borderRadius: "4px", objectFit: "cover", marginRight: 8 }}
+                  />
+                  <span style={{ fontSize: 14, flex: 1 }}>{dish.strMeal}</span>
+                  <button
+                    onClick={() => toggleWishlist(dish.idMeal)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#d33",
+                      cursor: "pointer",
+                      fontSize: 17,
+                      marginLeft: 4,
+                      padding: "2px 6px",
+                      borderRadius: "4px"
+                    }}
+                    title="Remove from wishlist"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
       </div>
     </>
   );
