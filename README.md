@@ -42,7 +42,7 @@ This project is a simple restaurant menu web app built in React. It demonstrates
 ## How to Run
 
 1. Clone the repository  
-   `git clone https://github.com/ReDI-School/web-circle-excercise.git`
+   git clone https://github.com/CollinsWachira95/redi-code-challenge.git
 2. Install dependencies  
    `npm install`
 3. Start the development server  
